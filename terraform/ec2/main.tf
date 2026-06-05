@@ -1,9 +1,9 @@
 provider "aws" {
-  region = "us-east-1"
+  region = "us-west-2"
 }
 
 resource "aws_instance" "example" {
-  ami           = "ami-0c94855ba95c71c99"
+  ami           = "ami-0c2ab3b8efb09f272"
   instance_type = "t3.micro"
   root_block_device {
     volume_size = 8
