@@ -1,0 +1,1 @@
+resource "aws_ebs_volume" "example" { size = 50 }
