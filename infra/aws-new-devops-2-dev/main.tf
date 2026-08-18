@@ -83,7 +83,7 @@ module "eks" {
   version = "~> 20.0"
 
   cluster_name    = local.cluster_name
-  cluster_version = "1.33"
+  cluster_version = "1.36"
 
   # Required for the AWS Load Balancer Controller (and EBS CSI IRSA) to bind
   # IAM roles to Kubernetes service accounts via the cluster's OIDC issuer.
