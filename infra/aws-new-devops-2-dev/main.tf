@@ -2,16 +2,6 @@ locals {
   cluster_name = "aws-new-devops-2-dev"
   region       = "us-east-1"
 
-  # AWS Load Balancer Controller version pair — KEEP THESE IN SYNC.
-  #   alb_chart_version : the Helm chart (helm_release.aws_lb_controller)
-  #   alb_policy_ref    : the controller git tag whose docs/install/iam_policy.json
-  #                       we attach to the controller's IRSA role
-  # Chart 1.8.x ships controller v2.8.x. Bumping one without the other risks a
-  # controller that needs a permission its policy doesn't grant (that is the
-  # 403 AccessDenied / DescribeListenerAttributes failure we hit in 2026-07).
-  alb_chart_version = "1.8.1"
-  alb_policy_ref    = "v2.8.1"
-
   tags = {
     ManagedBy   = "DeepAgent"
     Cluster     = local.cluster_name
@@ -249,83 +239,3 @@ module "lb_controller_irsa" {
   tags = local.tags
 }
 
-# Upstream AWSLoadBalancerControllerIAMPolicy, fetched at apply time so it can
-# never be stale. Pinned to the controller tag that MATCHES the Helm chart we
-# install (see local.alb_chart_version / local.alb_policy_ref) so the granted
-# permissions and the running controller are always version-consistent —
-# tracking `main` instead would work too, but makes a re-apply of an old
-# commit non-reproducible. Bump both locals together when upgrading.
-data "http" "alb_controller_policy" {
-  url = "https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/${local.alb_policy_ref}/docs/install/iam_policy.json"
-
-  request_headers = {
-    Accept = "application/json"
-  }
-}
-
-resource "aws_iam_policy" "alb_controller" {
-  name        = "${local.cluster_name}-alb-controller"
-  description = "Upstream AWSLoadBalancerControllerIAMPolicy @ ${local.alb_policy_ref} (fetched, not vendored — see comments)"
-  policy      = data.http.alb_controller_policy.response_body
-
-  tags = local.tags
-}
-
-resource "aws_iam_role_policy_attachment" "alb_controller" {
-  role       = module.lb_controller_irsa.iam_role_name
-  policy_arn = aws_iam_policy.alb_controller.arn
-}
-
-# The ServiceAccount must exist BEFORE the helm chart deploys — the chart
-# is configured with serviceAccount.create=false so it expects one already
-# annotated with the IRSA role ARN.
-resource "kubernetes_service_account" "aws_lb_controller" {
-  metadata {
-    name      = "aws-load-balancer-controller"
-    namespace = "kube-system"
-    annotations = {
-      "eks.amazonaws.com/role-arn" = module.lb_controller_irsa.iam_role_arn
-    }
-    labels = {
-      "app.kubernetes.io/name"       = "aws-load-balancer-controller"
-      "app.kubernetes.io/managed-by" = "terraform"
-    }
-  }
-}
-
-resource "helm_release" "aws_lb_controller" {
-  name       = "aws-load-balancer-controller"
-  namespace  = "kube-system"
-  repository = "https://aws.github.io/eks-charts"
-  chart      = "aws-load-balancer-controller"
-  version    = local.alb_chart_version # pinned; paired with local.alb_policy_ref
-
-  set {
-    name  = "clusterName"
-    value = module.eks.cluster_name
-  }
-  set {
-    name  = "serviceAccount.create"
-    value = "false"
-  }
-  set {
-    name  = "serviceAccount.name"
-    value = kubernetes_service_account.aws_lb_controller.metadata[0].name
-  }
-  set {
-    name  = "region"
-    value = local.region
-  }
-  set {
-    name  = "vpcId"
-    value = local.vpc_id
-  }
-
-  # Depend on BOTH the ServiceAccount (helm expects it to already exist,
-  # serviceAccount.create=false) AND the policy attachment — a controller that
-  # starts before its IAM permissions land logs 403s and needs a restart.
-  depends_on = [
-    kubernetes_service_account.aws_lb_controller,
-    aws_iam_role_policy_attachment.alb_controller,
-  ]
-}
