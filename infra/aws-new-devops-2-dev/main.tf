@@ -148,7 +148,7 @@ module "eks" {
   enable_cluster_creator_admin_permissions = true
 
   eks_managed_node_groups = {
-    aws-new-devops-2-dev-workers = {
+    aws-new-devops-workers = {
       subnet_ids     = local.node_subnet_ids
       instance_types = ["t3.medium"]
       capacity_type  = "ON_DEMAND"
