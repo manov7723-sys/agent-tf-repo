@@ -14,7 +14,7 @@ locals {
 locals {
   vpc_id         = "vpc-023dc15715418b42e"
   subnet_ids     = ["subnet-01ad8779961e72d6b", "subnet-01da8ea28ec913a78", "subnet-0d71979fad63f30b1", "subnet-070de0195cffae7b6", "subnet-0d779831a200e94ec", "subnet-04145ffe285d9b5ec"]
-  node_subnet_ids = local.subnet_ids
+  node_subnet_ids = ["subnet-01ad8779961e72d6b", "subnet-070de0195cffae7b6", "subnet-04145ffe285d9b5ec"]
 }
 
 # ────────────────────────────────────────────────────────────────────────
